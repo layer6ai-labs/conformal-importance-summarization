@@ -1,7 +1,7 @@
 
 <p align="center">
-<a href="https://layer6.ai/"><img src="https://github.com/layer6ai-labs/DropoutNet/blob/master/logs/logobox.jpg" height="60"></a>
-<a href="https://layer6.ai/"><img src="Signal1.jpg" height="60"></a>
+<a href="https://layer6.ai/"><img src="https://github.com/layer6ai-labs/DropoutNet/blob/master/logs/logobox.jpg" height="66"></a>
+<a href="https://signal1.ai/"><img src="Signal1.jpg" height="60"></a>
 </p>
 
 # Document Summarization with Conformal Importance Guarantees 

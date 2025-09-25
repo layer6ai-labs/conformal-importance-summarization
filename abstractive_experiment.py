@@ -59,6 +59,7 @@ def get_file_name(
     seed: int | None,
 ):
     seed_str = "" if seed is None else f"-seed-{seed}"
+    os.makedirs("experiments", exist_ok=True)
     return f"experiments/abstractive_experiment-model-{model}-dataset-{dataset}-beta-{round(beta, 2)}-num_icl_examples-{num_icl_examples}{seed_str}.json"
 
 def run(model, dataset, beta, num_icl_examples, seed):
