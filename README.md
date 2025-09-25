@@ -1,7 +1,7 @@
 
 <p align="center">
-<a href="https://layer6.ai/"><img src="https://github.com/layer6ai-labs/DropoutNet/blob/master/logs/logobox.jpg" width="180"></a>
-<a href="https://layer6.ai/"><img src="Signal1.jpg" width="180"></a>
+<a href="https://layer6.ai/"><img src="https://github.com/layer6ai-labs/DropoutNet/blob/master/logs/logobox.jpg" height="60"></a>
+<a href="https://layer6.ai/"><img src="Signal1.jpg" height="60"></a>
 </p>
 
 # Document Summarization with Conformal Importance Guarantees 
@@ -57,4 +57,14 @@ To generate and evaluate abstractive summary baselines:
 - extr_abstr_experiment.py: Main method for running abstractive post-processing on top of Conformal Importance Summarization (see above)
 - abstractive_experiment.py: Main method for running pure abstractive summarizartion baseline experiments (see above)
 
+# Citing
 
+    @inproceedings{kuwahara2025,
+        title={Document Summarization with Conformal Importance Guarantees}, 
+        author={Bruce Kuwahara and Chen-Yuan Lin and Xiao Shi Huang and Kin Kwan Leung and Jullian Arta Yapeter and Ilya Stanevich and Felipe Perez and Jesse C. Cresswell},
+        booktitle={Advances in Neural Information Processing Systems},
+        year={2025},
+    }
+
+# License
+This data and code is licensed under the MIT License, copyright by Layer 6 AI and Signal 1 AI.
