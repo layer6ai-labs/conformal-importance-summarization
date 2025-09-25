@@ -1,26 +1,28 @@
 import json
 import time
+import os
 import re
 from typing import Literal
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import tqdm
-from openai import OpenAI
 from dotenv import load_dotenv
 from google import genai
+from openai import OpenAI
+from src.data.loaddata import load_dataset
 
-load_dotenv("./.envrc")
-
-
-openai_client = OpenAI()
-gemini_client = genai.Client()
+load_dotenv("./.env")
+api_key_openai = os.getenv("OPENAI_API_KEY", "")
+api_key_gemini = os.getenv("GEMINI_API_KEY", "")
+print("Using OpenAI and/or Gemini API Keys")
+openai_client = OpenAI(api_key=api_key_openai)
+gemini_client = genai.Client(api_key=api_key_gemini)
 
 MAX_RETRIES = 10
 
 
 def llm_call(prompt_text: str, model: Literal["gpt-4o-mini", "gemini-2.5-flash"]):
-
     for attempt in range(MAX_RETRIES):
         try:
             if model == "gpt-4o-mini":
@@ -46,13 +48,10 @@ def llm_call(prompt_text: str, model: Literal["gpt-4o-mini", "gemini-2.5-flash"]
             delay = 2 ** attempt
             print(f"Exception {type(e)}. Trying again in {delay}s")
             time.sleep(delay)
-    # This should never be reached due to the raise in the loop
-    raise RuntimeError
 
 
-def load_cal_test(seed: int | None):
-    cal_df = pd.read_parquet("../data/ECTSum/ECT_cal.parquet")
-    test_df = pd.read_parquet("../data/ECTSum/ECT_test.parquet")
+def load_cal_test(dataset: str, seed: int | None):
+    cal_df, test_df = load_dataset(name=dataset, as_dataframe=True, use_pandas=True)
 
     if seed is not None:
         cal_size = len(cal_df)
@@ -61,31 +60,49 @@ def load_cal_test(seed: int | None):
         combined_df = combined_df.sample(frac=1, random_state=seed).reset_index(drop=True)
         cal_df = combined_df.iloc[:cal_size].reset_index(drop=True)
         test_df = combined_df.iloc[cal_size:cal_size + test_size].reset_index(drop=True)
-        assert len(cal_df) == cal_size
-        assert len(test_df) == test_size
 
     return cal_df, test_df
 
 
+def map_extr_model_to_score_name(extr_model: str) -> str:
+    # For preexisting scores, map model id to score column name
+    if extr_model == "gpt-4o-mini":
+        return "gpt_scores"
+    elif extr_model == "gemini-2.0-flash-lite":
+        return "gemini2_scores"
+    elif extr_model == "gemini-2.5-flash":
+        return "gemini25_scores"
+    elif extr_model == "llama-3-8b":
+        return "llama_scores"
+    elif extr_model == "qwen-3-14b":
+        return "qwen3_scores"
+    else:
+        return extr_model  # assume it's already a score name
+
+
 def get_file_name(
+    extr_model: str,
+    abstr_model: str,
+    dataset: str,
     beta: float,
     alpha: float,
     seed: int | None,
-    score_name: str,
-    summary_model: str,
 ):
     seed_str = "" if seed is None else f"-seed-{seed}"
-    return f"retain_ECT_experiment-summary-{summary_model}-beta-{round(beta, 2)}-alpha-{round(alpha, 2)}-{score_name}{seed_str}.json"
+    os.makedirs("experiments", exist_ok=True)
+    return f"experiments/extr_abstr_experiment-extr_model-{extr_model}-abstr_model-{abstr_model}-dataset-{dataset}-beta-{round(beta, 2)}-alpha-{round(alpha, 2)}{seed_str}.json"
 
 
 def run(
+    extr_model: str,
+    abstr_model: Literal["gpt-4o-mini", "gemini-2.5-flash"],
+    dataset: str,
     beta: float,
     alpha: float,
     seed: int | None,
-    score_name: str,
-    summary_model: Literal["gpt-4o-mini", "gemini-2.5-flash"],
 ):
-    out_file = get_file_name(beta, alpha, seed, score_name, summary_model)
+    out_file = get_file_name(extr_model, abstr_model, dataset, beta, alpha, seed)
+    extr_model = map_extr_model_to_score_name(extr_model)
 
     try:
         with open(out_file, "r") as f:
@@ -95,23 +112,22 @@ def run(
     except FileNotFoundError:
         lines_run = 0
 
-    # shuffle the cal and test set together, then split again
-    cal_df, test_df = load_cal_test(seed)
+    cal_df, test_df = load_cal_test(dataset, seed)
 
     # Count unique values to see if they are degenerate
-    # unique_score_counts = pd.Series(np.concatenate(cal_df[score_name].values)).value_counts()
+    # unique_score_counts = pd.Series(np.concatenate(cal_df[extr_model].values)).value_counts()
     # print(unique_score_counts.head(10))
-    # they are highly degenerate, fix it!
+    # They are highly degenerate, fix it!
     rng = np.random.RandomState(0)
     for df in [cal_df, test_df]:
-        df[score_name] = df[score_name].apply(
+        df[extr_model] = df[extr_model].apply(
             lambda scores: scores + 1e-6 * rng.randn(len(scores))
         )
     
     s_betas = []
     for _, row in cal_df.iterrows():
         label = row["input_sentences_labels"]
-        score = row[score_name]
+        score = row[extr_model]
         argsort = np.argsort(score)[::-1]  # argsort the score from high to low.
         sorted_label = label[argsort]   # label w.r.t score from high to low
         sorted_score = score[argsort]   # score from high to low
@@ -130,7 +146,7 @@ def run(
         for _, row in df.iterrows():
             label = row["input_sentences_labels"]
             num_positives = sum(label)
-            score = row[score_name]
+            score = row[extr_model]
             selected = score >= threshold
             num_selected = sum(label[selected])
             percents.append(num_selected / num_positives)
@@ -144,7 +160,7 @@ def run(
                 continue
             label = row["input_sentences_labels"]
             positive_labels = label > 0.5
-            score = row[score_name]
+            score = row[extr_model]
             selected = score >= threshold
             selected_positive = selected[positive_labels]
             selected_sentences = row["input_sentences"][selected]
@@ -156,7 +172,7 @@ def run(
                 "- Improve flow, coherence, and readability\n\n"
                 f"Text to shorten, paraphrase and rewrite:\n{input_text}"
             )
-            summary = llm_call(prompt_text, model=summary_model)
+            summary = llm_call(prompt_text, model=abstr_model)
             responses.append(summary)
 
             retained_array = []
@@ -189,14 +205,15 @@ def run(
 
 
 def analyze(
+    extr_model: str,
+    abstr_model: Literal["gpt-4o-mini", "gemini-2.5-flash"],
+    dataset: str,
     beta: float,
     alpha: float,
     seed: int | None,
-    score_name: str,
-    summary_model: Literal["gpt-4o-mini", "gemini-2.5-flash"]
 ):
-    in_file = get_file_name(beta, alpha, seed, score_name, summary_model)
-    _, test_df = load_cal_test(seed)
+    in_file = get_file_name(extr_model, abstr_model, dataset, beta, alpha, seed)
+    _, test_df = load_cal_test(dataset, seed)
     with open(in_file, "r") as f:
         res = [json.loads(l) for l in f.readlines()]
     df = pd.DataFrame(res)
@@ -211,7 +228,7 @@ def analyze(
     total_sample_selected_rate = df["selected_positive"].apply(sum).sum() / df['selected_positive'].apply(len).sum()
     total_sample_retained_rate = df["retained_array"].apply(sum).sum() / df["retained_array"].apply(len).sum()
     word_count = lambda x: len(re.findall(r'\w+', x))
-    res = {
+    metrics = {
         "average_sample_selected_rate": df["selected_rate"].mean(),
         "average_sample_retained_rate": df["retained_rate"].mean(),
         "recall_difference": df["selected_rate"].mean() - df["retained_rate"].mean(),
@@ -228,15 +245,18 @@ def analyze(
         "coverage_after": (df["retained_rate"] >= beta).mean(),
         "coverage_difference": (df["selected_rate"] >= beta).mean() - (df["retained_rate"] >= beta).mean(),
     }
-    print(pd.Series(res).to_csv(header=False))
-
+    metrics_filename = in_file.replace(".json", ".csv")
+    pd.Series(metrics).to_csv(metrics_filename, header=False)
+    print(pd.Series(metrics))
 
 if __name__ == '__main__':
+    # extr_model options provided by default: gpt-4o-mini, gemini-2.0-flash-lite, gemini-2.5-flash, llama-3-8b, qwen-3-14b
+    extr_model = "gemini-2.5-flash"
+    # abstr_model options provided by default: gpt-4o-mini, gemini-2.5-flash
+    abstr_model = "gemini-2.5-flash"
+    dataset = "ECTSum"
     beta = 0.8
     alpha = 0.2
     seed = None  # can shuffle cal/test splits to get different CP results
-    score_name = "gemini25_scores"
-    summary_model = "gemini-2.5-flash"
-
-    run(beta, alpha, seed, score_name, summary_model)
-    analyze(beta, alpha, seed, score_name, summary_model)
+    run(extr_model, abstr_model, dataset, beta, alpha, seed)
+    analyze(extr_model, abstr_model, dataset, beta, alpha, seed)

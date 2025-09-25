@@ -1,4 +1,4 @@
-dspy==2.5.1
+dspy==2.6.0
 joblib==1.4.2
 jsonlines==4.0.0
 matplotlib==3.10.1
@@ -14,7 +14,7 @@ rouge==1.0.1
 rouge_score==0.1.2
 scikit-learn==1.6.1
 scipy==1.15.2
+sentence-transformers==4.1.0
 torch==2.6.0
 tqdm==4.67.1
 transformers==4.49.0
-sentence-transformers==4.1.0

@@ -60,3 +60,4 @@ docs/_build/
 *.pkl
 models/
 checkpoints/
+experiments/
