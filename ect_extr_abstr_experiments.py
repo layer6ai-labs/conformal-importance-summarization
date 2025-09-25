@@ -10,7 +10,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from google import genai
 
-load_dotenv("../.envrc")
+load_dotenv("./.envrc")
 
 
 openai_client = OpenAI()

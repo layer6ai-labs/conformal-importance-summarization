@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from google import genai
 from openai import OpenAI
 
-load_dotenv()
+load_dotenv('./.env')
 api_key_openai = os.getenv("OPENAI_API_KEY", "")
 api_key_gemini = os.getenv("GEMINI_API_KEY", "")
 print(api_key_openai)
