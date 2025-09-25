@@ -9,6 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from src.data.dataset import ImportanceDataset
 import polars as pl
+import pandas as pd
 
 # Enable tqdm progress bar for pandas
 tqdm.pandas()
@@ -78,9 +79,9 @@ def load_dataset_raw_MTS(path, filename_cal, filename_test):
     return df_cal, df_test
 
 
-def load_dataset(name="ECTSum", label_col="input_sentences_labels", as_dataframe=False):
+def load_dataset(name="ECTSum", label_col="input_sentences_labels", as_dataframe=False, use_pandas=False):
     """
-    Loading datasets, return a polars dataframe.
+    Loading datasets, return a polars or pandas dataframe.
     Dataset is selected by the name input option:
     - nothing: the default dataset
     - MTS: the MTS_dialogue dataset, for healthcare
@@ -113,13 +114,17 @@ def load_dataset(name="ECTSum", label_col="input_sentences_labels", as_dataframe
         filename_cal = DATA_PATH / 'CNNDailyMail/CNNDM_cal.parquet'
         filename_test = DATA_PATH / 'CNNDailyMail/CNNDM_test.parquet'
     else:
-        raise ValueError(f"Dataset {name} not found, check the name to be within [tldr, MTS, ECTSum, CSDS, CNNDM]")
+        raise ValueError(f"Dataset {name} not found, check the name to be within [tldr, tldr_fulltext, MTS, ECTSum, CSDS, CNNDM]")
 
     print(filename_cal)
     print(filename_test)
     if os.path.exists(filename_cal) and os.path.exists(filename_test):
-        df_cal = pl.read_parquet(filename_cal)
-        df_test = pl.read_parquet(filename_test)
+        if use_pandas:
+            df_cal = pd.read_parquet(filename_cal)
+            df_test = pd.read_parquet(filename_test)
+        else:
+            df_cal = pl.read_parquet(filename_cal)
+            df_test = pl.read_parquet(filename_test)
     else:
         if name == "tldr":
             directory = DATA_PATH / 'TLDR/'
@@ -136,8 +141,9 @@ def load_dataset(name="ECTSum", label_col="input_sentences_labels", as_dataframe
         else:
             raise ValueError(f"Dataset {name} download not supported, check the name to be within [tldr, MTS, ECTSum, CSDS]")
 
-        df_cal = pl.from_pandas(df_cal)
-        df_test = pl.from_pandas(df_test)
+        if not use_pandas:
+            df_cal = pl.from_pandas(df_cal)
+            df_test = pl.from_pandas(df_test)
 
     if as_dataframe:
         return df_cal, df_test
